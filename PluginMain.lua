@@ -1,75 +1,97 @@
-local buttons = script.Parent.Buttons
+--jjyuill
+-- based off StealthKing95 A* plugin. Modified to be more modern. and not make 17k Buttons (Og asset ID: 207049192)
+
+local Buttons = script.Parent.Buttons
 
 local loadOrder = {
-	"PlaceNodes";
-	"RecalcNodegraph";
-	"ManualNodeConnect";
-	"ManualDisconnect";
-	"NodeRemover";
-	"FindPath";
-	"InstallModule";
-	"VersionCheck";
-	"ClutterToggle";
-	"ShowIDs";
-	"IsConnected";
+	"PlaceNodes",
+	"RecalcNodegraph",
+	"ManualNodeConnect",
+	"ManualDisconnect",
+	"NodeRemover",
+	"FindPath",
+	"InstallModule",
+	"SetPath",
+	"ConnectionsToggle",
+	"DrawSavedPath",
+	"ShowIDs"
 }
 
+local Toolbar : PluginToolbar = plugin:CreateToolbar("A* Pathing Tools")
 
-function createButtons()
-	for _, btnName in pairs(loadOrder) do
-		local buttonStatus, err = pcall(function()
-			local button = buttons:FindFirstChild(btnName)
-			local newButton = require(button)
-			local Plugin = PluginManager():CreatePlugin()
-			local Toolbar = Plugin:CreateToolbar("StealthKing95's Pathfinding Tools")
-			local PluginButton = Toolbar:CreateButton(newButton.Info[1], newButton.Info[2], newButton.Info[3])
-			local mouse = Plugin:GetMouse()
-			
-			if newButton.Deactivate ~= nil then
-				Plugin.Deactivation:connect(newButton.Deactivate)
-			end
-			
-			PluginButton.Click:connect(function()
-				if newButton.Click ~= nil then
-					newButton.Click()
-				end
-				newButton.Active = not newButton.Active
-				if newButton.Active then
-					Plugin:Activate(true)
-					newButton.Activate(PluginButton)
-				else
-					if newButton.Deactivate ~= nil then
-						newButton.Deactivate(PluginButton)
-					end
-					PluginButton:SetActive(false)
-				end
-			end)
-	
-			mouse.Button1Down:connect(function()
-				if newButton.MDown ~= nil then
-					newButton.MDown(mouse.Target, mouse.Hit.p)
-				end
-			end)
-			
-			mouse.Button2Down:connect(function()
-				if newButton.M2Down ~= nil then
-					newButton.M2Down(mouse.Target, mouse.Hit.p)
-				end
-			end)
-			
-			mouse.KeyDown:connect(function(key)
-				if newButton.KeyDown ~= nil then
-					newButton.KeyDown(key)
-				end
-			end)
-		end)
-		
-		if not buttonStatus then
-			error(err)
-		end
-	end
+local UIS : UserInputService = game.UserInputService
+local ActiveCallbacks = { }
+local Directory : Folder = game.CollectionService:GetTagged("NodeDirectory")
+
+if not Directory or #Directory == 0 then
+	Directory = Instance.new("Folder")
+	Directory.Name = "NodeDirectory"
+	Directory:AddTag("NodeDirectory")
+	Directory.Parent = game.ServerStorage
+else
+	Directory = Directory[1]
 end
 
+shared.Directory = Directory
 
-wait(1)
-createButtons()
+UIS.InputBegan:Connect(function(IO)
+	for _, Func in ActiveCallbacks do
+		local s, f = pcall(function()
+			Func(string.gsub(tostring(IO.KeyCode), "Enum.KeyCode.", ""))
+		end)
+		
+		if not s then warn(f) end
+	end
+end)
+
+for _, ButtonName in loadOrder do
+	local ButtonStatus, Err = pcall(function()
+		local Button : ModuleScript = Buttons:FindFirstChild(ButtonName)
+		local Callback : Button = require(Button)
+
+		local PluginButton : PluginToolbarButton = Toolbar:CreateButton(Callback.Info[1], Callback.Info[2], Callback.Info[3])
+		local Mouse : Mouse = plugin:GetMouse()
+
+		if Callback.Deactivate ~= nil then
+			plugin.Deactivation:connect(Callback.Deactivate)
+		end
+		
+		PluginButton.Click:connect(function()
+			if Callback.Click ~= nil then
+				Callback.Click()
+			end
+			
+			Callback.Active = not Callback.Active
+			
+			if Callback.Active then
+				plugin:Activate(true)
+				
+				Callback.Activate(PluginButton)
+			else
+				if Callback.Deactivate ~= nil then
+					Callback.Deactivate(PluginButton)
+				end
+				
+				PluginButton:SetActive(false)
+			end
+		end)
+		
+		if Callback.MDown ~= nil then
+			Mouse.Button1Down:connect(function()
+				Callback.MDown(Mouse.Target, Mouse.Hit.Position)
+			end)
+		end
+		if Callback.M2Down ~= nil then
+			Mouse.Button2Down:connect(function()
+				Callback.M2Down(Mouse.Target, Mouse.Hit.Position)
+			end)
+		end
+		if Callback.KeyDown ~= nil then
+			table.insert(ActiveCallbacks, Callback.KeyDown)
+		end
+	end)
+
+	if not ButtonStatus then
+		error(Err)
+	end
+end
